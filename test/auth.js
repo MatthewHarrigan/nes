@@ -582,6 +582,36 @@ describe('authentication', () => {
             await server.stop();
         });
 
+        it('does not count reauthentication towards the connections limit', async () => {
+
+            const server = Hapi.server();
+
+            server.auth.scheme('custom', internals.implementation);
+            server.auth.strategy('default', 'custom');
+            server.auth.default('default');
+
+            await server.register({ plugin: Nes, options: { auth: { index: true, maxConnectionsPerUser: 2 } } });
+            await server.start();
+
+            const client = new Nes.Client(getUri(server.info));
+            await client.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } });
+
+            for (let i = 0; i < 3; ++i) {
+                await client.reauthenticate({ headers: { authorization: 'Custom john' } });
+            }
+
+            const client2 = new Nes.Client(getUri(server.info));
+            await client2.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } });
+
+            const client3 = new Nes.Client(getUri(server.info));
+            await expect(client3.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } })).to.reject('Too many connections for the authenticated user');
+
+            client.disconnect();
+            client2.disconnect();
+            client3.disconnect();
+            await server.stop();
+        });
+
         it('protects an endpoint with prefix', async () => {
 
             const server = Hapi.server();
