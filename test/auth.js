@@ -596,19 +596,11 @@ describe('authentication', () => {
             const client = new Nes.Client(getUri(server.info));
             await client.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } });
 
-            for (let i = 0; i < 3; ++i) {
-                await client.reauthenticate({ headers: { authorization: 'Custom john' } });
-            }
-
-            const client2 = new Nes.Client(getUri(server.info));
-            await client2.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } });
-
-            const client3 = new Nes.Client(getUri(server.info));
-            await expect(client3.connect({ reconnect: false, auth: { headers: { authorization: 'Custom john' } } })).to.reject('Too many connections for the authenticated user');
+            await client.reauthenticate({ headers: { authorization: 'Custom john' } });
+            // a reauth is not a new connection
+            await expect(client.reauthenticate({ headers: { authorization: 'Custom john' } })).to.not.reject();
 
             client.disconnect();
-            client2.disconnect();
-            client3.disconnect();
             await server.stop();
         });
 

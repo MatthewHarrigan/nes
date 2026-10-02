@@ -367,6 +367,45 @@ describe('Listener', () => {
             await server.stop();
         });
 
+        it('sends to a reauthenticated user socket once', async () => {
+
+            const server = Hapi.server();
+
+            const implementation = (srv, options) => {
+
+                return {
+                    authenticate: (request, h) => {
+
+                        return h.authenticated({ credentials: { user: request.headers.authorization } });
+                    }
+                };
+            };
+
+            server.auth.scheme('custom', implementation);
+            server.auth.strategy('default', 'custom');
+            server.auth.default('default');
+
+            const password = 'some_not_random_password_that_is_also_long_enough';
+            await server.register({ plugin: Nes, options: { auth: { type: 'direct', password, index: true } } });
+
+            await server.start();
+            const client = new Nes.Client(getUri(server.info));
+            await client.connect({ auth: { headers: { authorization: 'steve' } } });
+            await client.reauthenticate({ headers: { authorization: 'steve' } });
+            await client.reauthenticate({ headers: { authorization: 'steve' } });
+
+            const updates = [];
+            client.onUpdate = (update) => updates.push(update);
+
+            server.broadcast('x', { user: 'steve' });
+
+            await Hoek.wait(50);
+
+            expect(updates).to.equal(['x']);
+            client.disconnect();
+            await server.stop();
+        });
+
         it('errors on missing auth index (disabled)', async () => {
 
             const server = Hapi.server();
